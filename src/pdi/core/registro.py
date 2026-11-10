@@ -25,8 +25,8 @@ from pdi.core.util import TIPO_CINZA, TIPO_RGB, tipo_da_imagem
 
 FuncaoProcesso = Callable[[np.ndarray, dict[str, Any]], Resultado]
 
-# Grupos válidos, na ordem em que aparecem na interface.
-GRUPOS: tuple[str, ...] = ("Cor", "Intensidade", "Espacial", "Frequência", "Ruído", "Restauração")
+# Grupos válidos, na ordem em que aparecem na interface (mesma ordem do PDF).
+GRUPOS: tuple[str, ...] = ("Cor", "Intensidade", "Espacial", "Frequência", "Restauração", "Ruído")
 
 # id -> spec. Dicionários preservam a ordem de inserção (ordem de registro).
 _PROCESSOS: dict[str, ProcessoSpec] = {}
