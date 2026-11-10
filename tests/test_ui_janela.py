@@ -149,3 +149,14 @@ def test_salvar_com_erro_mostra_mensagem(janela, tmp_path, img_cinza):
     janela.definir_saida(img_cinza)
     assert janela.salvar_saida(tmp_path / "nao" / "existe.png") is None
     assert "Não foi possível salvar" in janela.erros[0]
+
+
+def test_atalhos_valem_em_qualquer_sistema(janela):
+    # Os atalhos do README têm de existir mesmo onde o Qt não define um padrão (Windows).
+    atalhos = {
+        a.text(): a.shortcut().toString() for a in janela.findChildren(type(janela.acao_abrir))
+    }
+    assert atalhos["Sair"] == "Ctrl+Q"
+    assert janela.acao_abrir.shortcut().toString() == "Ctrl+O"
+    assert janela.acao_salvar.shortcut().toString() == "Ctrl+S"
+    assert [s.toString() for s in janela.acao_aplicar.shortcuts()] == ["Ctrl+Return", "F5"]

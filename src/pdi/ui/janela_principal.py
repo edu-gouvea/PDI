@@ -21,9 +21,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -48,6 +49,10 @@ from pdi.ui.visualizador import Visualizador
 from pdi.ui.worker import ExecutorDeProcessos
 
 TITULO_APP = "PDI: Processamento Digital de Imagens"
+# Pré-visualização automática: espera após a última mudança antes de aplicar, e tempo
+# acima do qual um processo é considerado lento demais para reaplicar sozinho.
+ATRASO_AUTOMATICO_MS = 250
+LIMITE_AUTOMATICO_S = 1.0
 # Altura da área de dados quando há histogramas ou imagens acessórias.
 ALTURA_ACESSORIOS_COM_CARTOES = 230
 
@@ -111,6 +116,14 @@ class JanelaPrincipal(QMainWindow):
         self._origem_saida: tuple[ProcessoSpec, dict[str, Any]] | None = None
         self._origem_pendente: tuple[ProcessoSpec, dict[str, Any]] | None = None
         self._acessorios_expandidos = False
+        # Pré-visualização automática
+        self._execucao_automatica = False  # a execução em andamento veio do modo automático?
+        self._automatico_pendente = False  # houve mudança enquanto um processo rodava
+        self._tempos: dict[str, float] = {}  # último tempo de cada processo (id → s)
+        self._timer_automatico = QTimer(self)
+        self._timer_automatico.setSingleShot(True)
+        self._timer_automatico.setInterval(ATRASO_AUTOMATICO_MS)
+        self._timer_automatico.timeout.connect(self._aplicar_automatico)
         self._ultima_pasta = _PASTA_IMAGENS_TESTE if _PASTA_IMAGENS_TESTE.is_dir() else Path.home()
 
         # Importa os módulos de processo (dispara os @registrar_processo). A interface
@@ -155,7 +168,7 @@ class JanelaPrincipal(QMainWindow):
         self.acao_aplicar.triggered.connect(self.aplicar)
 
         acao_sair = QAction("Sair", self)
-        acao_sair.setShortcut(QKeySequence.StandardKey.Quit)
+        acao_sair.setShortcut(QKeySequence("Ctrl+Q"))  # o "Quit" padrão do Qt não existe no Windows
         acao_sair.triggered.connect(self.close)
 
         menu = self.menuBar().addMenu("&Arquivo")
@@ -189,6 +202,14 @@ class JanelaPrincipal(QMainWindow):
         self.botao_aplicar.setMinimumWidth(110)
         self.botao_aplicar.setStyleSheet("font-weight: 600; padding: 4px 16px;")
         self.painel_parametros.adicionar_ao_rodape(self.botao_aplicar)
+        self.caixa_automatico = QCheckBox("Pré-visualização automática")
+        self.caixa_automatico.setToolTip(
+            "Reaplica sozinho ao mudar parâmetros, processo ou imagem. Pausa para "
+            f"processos que levam mais de {LIMITE_AUTOMATICO_S:g} s (use Aplicar)."
+        )
+        self.caixa_automatico.toggled.connect(lambda _: self._agendar_automatico())
+        self.painel_parametros.adicionar_ao_rodape(self.caixa_automatico, no_inicio=True)
+        self.painel_parametros.valores_alterados.connect(self._agendar_automatico)
         self.caixa_parametros = _caixa("Parâmetros do processo selecionado", self.painel_parametros)
 
         self.painel_acessorios = PainelAcessorios()
@@ -278,6 +299,7 @@ class JanelaPrincipal(QMainWindow):
         self.caixa_parametros.setTitle(titulo)
         self._ajustar_altura_parametros()
         self._atualizar_estado()
+        self._agendar_automatico()
 
     def _ajustar_altura_parametros(self) -> None:
         """Dá à caixa de parâmetros exatamente a altura que os controles pedem.
@@ -324,6 +346,7 @@ class JanelaPrincipal(QMainWindow):
         self.vis_entrada.definir_imagem(imagem.pixels)
         self.painel_processos.definir_tipo_imagem(imagem.tipo)
         self.definir_saida(None)
+        self._agendar_automatico()
 
     def _mostrar_status_da_entrada(self) -> None:
         assert self._entrada is not None
@@ -335,10 +358,11 @@ class JanelaPrincipal(QMainWindow):
 
     # ------------------------------------------------------------------ execução
 
-    def aplicar(self) -> bool:
+    def aplicar(self, automatico: bool = False) -> bool:
         """Dispara o processo selecionado em segundo plano. Devolve se conseguiu disparar."""
         if not self._pode_aplicar():
             return False
+        self._execucao_automatica = automatico
         assert self._entrada is not None and self._processo is not None
         parametros = self.painel_parametros.valores()
         # Só vira a origem da saída quando o resultado chegar (se falhar, a saída antiga
@@ -350,9 +374,40 @@ class JanelaPrincipal(QMainWindow):
     def _ao_mudar_ocupado(self, ocupado: bool) -> None:
         self.progresso.setVisible(ocupado)
         self._atualizar_estado()
+        if not ocupado and self._automatico_pendente:
+            # Algo mudou durante o processamento: reaplica com os valores MAIS RECENTES.
+            # singleShot(0): deixa o resultado que acabou de chegar ser exibido antes.
+            self._automatico_pendente = False
+            QTimer.singleShot(0, self._aplicar_automatico)
+
+    # -------------------------------------------------- pré-visualização automática
+
+    def _agendar_automatico(self) -> None:
+        """(Re)inicia a espera: só aplica quando as mudanças param por um instante."""
+        if self.caixa_automatico.isChecked():
+            self._timer_automatico.start()
+
+    def _aplicar_automatico(self) -> None:
+        if not self.caixa_automatico.isChecked() or self._processo is None or not self._entrada:
+            return
+        if not self.painel_processos.esta_habilitado(self._processo.id):
+            return
+        tempo = self._tempos.get(self._processo.id, 0.0)
+        if tempo > LIMITE_AUTOMATICO_S:
+            self.statusBar().showMessage(
+                f"Pré-visualização automática pausada: {self._processo.nome} leva "
+                f"{formatar_tempo(tempo)}. Use Aplicar (Ctrl+Enter)."
+            )
+            return
+        if self.executor.ocupado:
+            self._automatico_pendente = True  # reaplica assim que o atual terminar
+            return
+        self.aplicar(automatico=True)
 
     def _ao_concluir(self, resultado: Resultado, segundos: float) -> None:
         self._origem_saida = self._origem_pendente
+        if self._origem_saida is not None:
+            self._tempos[self._origem_saida[0].id] = segundos
         self.vis_saida.definir_imagens(resultado.saidas)
         self.painel_acessorios.definir(resultado)
         self._ajustar_altura_acessorios()
@@ -364,7 +419,10 @@ class JanelaPrincipal(QMainWindow):
 
     def _ao_falhar(self, mensagem: str) -> None:
         self.statusBar().showMessage(f"Erro: {mensagem}")
-        self._mostrar_erro(mensagem)
+        # No modo automático, só a barra de status: uma caixa de aviso a cada passo do
+        # slider (ex.: arrastando A acima de B no fatiamento) atrapalharia o uso.
+        if not self._execucao_automatica:
+            self._mostrar_erro(mensagem)
 
     def closeEvent(self, evento: QCloseEvent) -> None:  # noqa: N802 (nome do Qt)
         self.executor.encerrar()  # sem isso o Qt aborta ao destruir uma thread ativa

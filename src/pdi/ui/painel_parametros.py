@@ -315,9 +315,13 @@ class PainelParametros(QWidget):
         if lembrados:
             self.definir_valores(lembrados)
 
-    def adicionar_ao_rodape(self, widget: QWidget) -> None:
-        """Coloca ``widget`` no rodapé, à direita de "Restaurar padrões" (ex.: Aplicar)."""
-        self._rodape.addWidget(widget)
+    def adicionar_ao_rodape(self, widget: QWidget, no_inicio: bool = False) -> None:
+        """Coloca ``widget`` no rodapé: à direita de "Restaurar padrões" (ex.: Aplicar) ou,
+        com ``no_inicio``, na ponta esquerda (ex.: a caixa de pré-visualização automática)."""
+        if no_inicio:
+            self._rodape.insertWidget(0, widget)
+        else:
+            self._rodape.addWidget(widget)
 
     def definir_valores(self, valores: dict[str, Any]) -> None:
         for nome, valor in valores.items():

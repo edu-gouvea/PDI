@@ -1,0 +1,6 @@
+# Finais de linha fixos para os scripts de execução, independentemente do sistema de
+# quem fez o commit: o cmd do Windows pode se perder com .bat em LF, e o bash quebra
+# com .sh em CRLF ("bad interpreter: /bin/bash^M").
+*.bat text eol=crlf
+*.sh  text eol=lf
+*.png binary
