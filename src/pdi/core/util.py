@@ -1,7 +1,7 @@
 """Utilitários compartilhados: normalizar_para_uint8, clip e aplicar_por_canal (I1).
 
-Política de volta para uint8 (seção 7.2 e 8.3, item 4, do CLAUDE.md)
----------------------------------------------------------------------
+Política de volta para uint8
+----------------------------
 Todo processo calcula em float64 e precisa devolver uint8. Há duas formas, e cada
 processo deve documentar na ``descricao`` qual usa:
 
@@ -30,8 +30,8 @@ TIPO_RGB = "rgb"
 def tipo_da_imagem(img: np.ndarray) -> str:
     """Devolve ``TIPO_CINZA`` para ``(H, W)`` ou ``TIPO_RGB`` para ``(H, W, 3)``.
 
-    Levanta ``ValueError`` se ``img`` não seguir a convenção do projeto (seção 7.2 do
-    CLAUDE.md): ``np.ndarray`` uint8, não vazio, com 2 dimensões ou 3 com 3 canais.
+    Levanta ``ValueError`` se ``img`` não seguir a convenção de imagem do projeto:
+    ``np.ndarray`` uint8, não vazio, com 2 dimensões ou 3 com 3 canais (R, G, B).
     """
     if not isinstance(img, np.ndarray):
         raise ValueError(f"A imagem deveria ser um np.ndarray, mas é {type(img).__name__}.")

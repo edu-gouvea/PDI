@@ -1,4 +1,4 @@
-"""Corpo provisório dos processos ainda não implementados (seção 7.4 do CLAUDE.md).
+"""Corpo provisório dos processos ainda não implementados.
 
 Devolve a própria imagem de entrada, para que a interface possa ser testada com os
 17 processos antes de as implementações reais chegarem. Apague este arquivo quando

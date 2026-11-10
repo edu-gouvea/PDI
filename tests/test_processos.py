@@ -1,8 +1,8 @@
 """Testes de fumaça de TODOS os processos registrados (stubs ou reais).
 
-Garante que os 17 processos da especificação existem, com a compatibilidade da seção
-8.1 do CLAUDE.md, e que cada um roda com os parâmetros padrão numa imagem cinza e
-numa RGB. Continua valendo depois que os stubs forem substituídos (Etapa 4).
+Garante que os 17 processos da especificação existem, com a compatibilidade cinza/RGB
+combinada pelo grupo, e que cada um roda com os parâmetros padrão numa imagem cinza e
+numa RGB. Continua valendo depois que os stubs forem substituídos pelo código real.
 """
 
 import pytest

@@ -19,5 +19,8 @@ pytest                             # roda os testes
 ruff check . && ruff format .      # lint e formatação
 ```
 
-Arquitetura, contrato de processos e divisão do trabalho: veja [`CLAUDE.md`](CLAUDE.md).
+Contrato de processos (o que cada processo recebe e devolve):
+[`src/pdi/core/contrato.py`](src/pdi/core/contrato.py). Para implementar um processo,
+troque o corpo da função correspondente em [`src/pdi/processos/`](src/pdi/processos/).
+
 Especificação do professor: [`docs/especificacao-projeto.pdf`](docs/especificacao-projeto.pdf).

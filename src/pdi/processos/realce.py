@@ -64,9 +64,7 @@ def mascara_agucamento(img: np.ndarray, p: dict[str, Any]) -> Resultado:
     responsavel=3,
     aceita_cinza=True,
     aceita_rgb=True,
-    parametros=(
-        _janela(15, "3 = kernel Laplaciano clássico; maiores = ver seção 8.3 do CLAUDE.md."),
-    ),
+    parametros=(_janela(15, "3 = kernel Laplaciano clássico; maiores = máscaras estendidas."),),
     descricao="g = f − ∇²f. Mostra a imagem realçada e o Laplaciano ajustado (min-max).",
 )
 def realce_laplaciano(img: np.ndarray, p: dict[str, Any]) -> Resultado:
