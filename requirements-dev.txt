@@ -1,0 +1,15 @@
+# Dependências de DESENVOLVIMENTO (testes e lint). Instale depois de requirements.txt:
+#   pip install -r requirements-dev.txt
+#
+# OpenCV e scikit-image são usados APENAS nos testes, como referência para
+# comparar nossos resultados. Nunca importe-os em src/pdi.
+
+-r requirements.txt
+
+pytest>=8.0
+ruff>=0.6
+
+# Versão "headless" (sem GUI): o opencv-python comum traz o próprio Qt,
+# que conflita com o PySide6 e pode quebrar a interface.
+opencv-python-headless>=4.10
+scikit-image>=0.24

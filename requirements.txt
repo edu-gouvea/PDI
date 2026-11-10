@@ -1,0 +1,11 @@
+# Dependências para RODAR o aplicativo.
+# Uso (na raiz do projeto, com o venv ativo): pip install -r requirements.txt
+
+numpy>=2.0            # toda a matemática dos processos (implementada à mão)
+pillow>=10.4          # SOMENTE leitura/escrita de PNG, nunca para processar
+PySide6>=6.8          # interface gráfica (Qt); 6.8+ suporta Python 3.13
+matplotlib>=3.9       # histogramas embutidos na interface
+
+# Instala o próprio pacote "pdi" (src/pdi) em modo editável,
+# para que "python -m pdi" funcione a partir de qualquer pasta.
+-e .

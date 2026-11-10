@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdi"
+version = "0.1.0"
+description = "Projeto de Processamento Digital de Imagens (UFPB/CI/DSC) - 3a unidade"
+requires-python = ">=3.11"
+# As dependências ficam em requirements.txt (fonte única), que também instala
+# este pacote em modo editável com "-e .".
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Permite rodar os testes mesmo sem "pip install -e ." (útil para os colegas).
+pythonpath = ["src"]
+addopts = "-ra"
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/W: estilo PEP 8 | F: erros (nomes indefinidos, imports sem uso)
+# I: ordem dos imports | UP: sintaxe moderna | B: armadilhas comuns | SIM: simplificações
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pdi"]
+
+[tool.ruff.format]
+quote-style = "double"
