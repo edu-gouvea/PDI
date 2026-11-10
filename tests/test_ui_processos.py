@@ -117,7 +117,8 @@ def test_abrir_rgb_desabilita_equalizacao(janela):
 def test_selecao_na_lista_chega_na_janela(janela):
     janela.painel_processos.selecionar("filtro_butterworth")
     assert janela.processo.id == "filtro_butterworth"
-    assert "Butterworth" in janela._rotulo_parametros.text()
+    assert janela.painel_parametros.processo.id == "filtro_butterworth"
+    assert "Butterworth" in janela.caixa_parametros.title()
 
 
 def test_encadear_canal_cinza_habilita_equalizacao(janela):
