@@ -1,7 +1,12 @@
 """Fixtures compartilhadas pelos testes de todos os integrantes."""
 
+import os
+
 import numpy as np
 import pytest
+
+# Testes de interface rodam sem abrir janelas (também em máquinas sem tela).
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # Importa todos os processos ANTES de qualquer teste. Se um módulo de processo fosse
 # importado pela primeira vez durante um teste com `registro_limpo`, os registros dele
@@ -30,3 +35,11 @@ def img_rgb() -> np.ndarray:
     """Imagem RGB 32x48 com canais diferentes entre si."""
     rng = np.random.default_rng(0)
     return rng.integers(0, 256, size=(32, 48, 3), dtype=np.uint8)
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """QApplication única para todos os testes de interface."""
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
