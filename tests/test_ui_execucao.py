@@ -180,7 +180,7 @@ def test_aplicar_mostra_saida_tempo_e_info(qapp, janela):
     np.testing.assert_array_equal(janela.saida, janela.entrada.pixels)
     assert "aplicado em" in janela.statusBar().currentMessage()
     assert janela.rotulo_tempo.text().startswith("Tempo: ")
-    assert "stub" in janela._rotulo_acessorios.text()
+    assert "stub" in janela.painel_acessorios.texto_info
     assert janela.acao_salvar.isEnabled() and not janela.progresso.isVisible()
 
 
@@ -196,7 +196,7 @@ def test_saidas_multiplas_viram_abas(qapp, janela, tmp_path):
     from pdi.core.imagem_io import carregar_png
 
     np.testing.assert_array_equal(carregar_png(usado).pixels, janela.entrada.pixels[..., 1])
-    assert "histograma: Histograma R" in janela._rotulo_acessorios.text()
+    assert [c.titulo for c in janela.painel_acessorios.cartoes] == ["Histograma R"]
 
 
 def test_erro_mostra_mensagem_e_mantem_saida_anterior(qapp, janela):

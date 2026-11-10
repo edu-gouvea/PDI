@@ -37,16 +37,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pdi.core.contrato import Histograma, ProcessoSpec, Resultado
+from pdi.core.contrato import ProcessoSpec, Resultado
 from pdi.core.imagem_io import ImagemCarregada, carregar_png, salvar_png
 from pdi.core.registro import carregar_processos, processos_por_grupo
 from pdi.core.util import tipo_da_imagem
+from pdi.ui.painel_acessorios import PainelAcessorios
 from pdi.ui.painel_parametros import PainelParametros
 from pdi.ui.painel_processos import PainelProcessos
 from pdi.ui.visualizador import Visualizador
 from pdi.ui.worker import ExecutorDeProcessos
 
 TITULO_APP = "PDI: Processamento Digital de Imagens"
+# Altura da área de dados quando há histogramas ou imagens acessórias.
+ALTURA_ACESSORIOS_COM_CARTOES = 230
 
 # Pasta inicial do diálogo "Abrir": imagens_teste/ do projeto, se existir.
 _PASTA_IMAGENS_TESTE = Path(__file__).resolve().parents[3] / "imagens_teste"
@@ -107,6 +110,7 @@ class JanelaPrincipal(QMainWindow):
         # O que gerou a saída exibida (para o nome sugerido ao salvar).
         self._origem_saida: tuple[ProcessoSpec, dict[str, Any]] | None = None
         self._origem_pendente: tuple[ProcessoSpec, dict[str, Any]] | None = None
+        self._acessorios_expandidos = False
         self._ultima_pasta = _PASTA_IMAGENS_TESTE if _PASTA_IMAGENS_TESTE.is_dir() else Path.home()
 
         # Importa os módulos de processo (dispara os @registrar_processo). A interface
@@ -187,23 +191,20 @@ class JanelaPrincipal(QMainWindow):
         self.painel_parametros.adicionar_ao_rodape(self.botao_aplicar)
         self.caixa_parametros = _caixa("Parâmetros do processo selecionado", self.painel_parametros)
 
-        # Provisório até o painel de acessórios (Etapa 4): lista info e acessórios em texto.
-        self._rotulo_acessorios = QLabel("Nada a exibir")
-        self._rotulo_acessorios.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._rotulo_acessorios.setWordWrap(True)
-        self._rotulo_acessorios.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-        self.caixa_acessorios = _caixa("Dados e imagens acessórias", self._rotulo_acessorios)
+        self.painel_acessorios = PainelAcessorios()
+        self.caixa_acessorios = _caixa("Dados e imagens acessórias", self.painel_acessorios)
 
         direita = QSplitter(Qt.Orientation.Vertical)
+        self._divisor = direita
         direita.addWidget(imagens)
         direita.addWidget(self.caixa_parametros)
         direita.addWidget(self.caixa_acessorios)
         # Parâmetros não esticam: ficam com a altura dos controles; o resto vai às imagens.
-        direita.setStretchFactor(0, 5)
+        # A área de dados começa baixa e cresce só quando há gráficos ou imagens nela
+        # (_ajustar_altura_acessorios); todo o resto vai para as imagens.
+        direita.setStretchFactor(0, 1)
         direita.setStretchFactor(1, 0)
-        direita.setStretchFactor(2, 2)
+        direita.setStretchFactor(2, 0)
         direita.setChildrenCollapsible(False)
 
         self.painel_processos = PainelProcessos(processos_por_grupo())
@@ -288,6 +289,34 @@ class JanelaPrincipal(QMainWindow):
         self.caixa_parametros.layout().activate()
         self.caixa_parametros.setFixedHeight(self.caixa_parametros.sizeHint().height())
 
+    def _ajustar_altura_acessorios(self) -> None:
+        """Dá altura à área de dados só quando há cartões (histogramas, imagens) nela.
+
+        Com só texto, ela fica com uma linha e as imagens ganham o espaço. O ajuste só
+        acontece quando o estado muda, para não desfazer a cada Aplicar uma divisória
+        que o usuário arrastou à mão.
+        """
+        expandir = bool(self.painel_acessorios.cartoes)
+        if expandir == self._acessorios_expandidos:
+            return
+        tamanhos = self._divisor.sizes()
+        total = sum(tamanhos)
+        if total == 0:  # janela ainda não exibida: tenta de novo no próximo resultado
+            return
+        self._acessorios_expandidos = expandir
+        # Atualiza o layout antes de medir: a faixa de cartões acabou de ser escondida e,
+        # sem isso, ainda entraria na conta da altura mínima.
+        self.painel_acessorios.layout().activate()
+        self.caixa_acessorios.layout().activate()
+        desejado = (
+            ALTURA_ACESSORIOS_COM_CARTOES
+            if expandir
+            else self.caixa_acessorios.minimumSizeHint().height()
+        )
+        tamanhos[2] = desejado
+        tamanhos[0] = max(total - tamanhos[1] - desejado, 0)
+        self._divisor.setSizes(tamanhos)
+
     def _definir_entrada(self, imagem: ImagemCarregada) -> None:
         """Troca a imagem de entrada e reavalia quais processos se aplicam a ela."""
         self.executor.descartar_pendente()  # um resultado da imagem antiga não serve mais
@@ -325,7 +354,8 @@ class JanelaPrincipal(QMainWindow):
     def _ao_concluir(self, resultado: Resultado, segundos: float) -> None:
         self._origem_saida = self._origem_pendente
         self.vis_saida.definir_imagens(resultado.saidas)
-        self._mostrar_dados(resultado)
+        self.painel_acessorios.definir(resultado)
+        self._ajustar_altura_acessorios()
         tempo = formatar_tempo(segundos)
         self.rotulo_tempo.setText(f"Tempo: {tempo}")
         nome = self._origem_saida[0].nome if self._origem_saida else "Processo"
@@ -335,16 +365,6 @@ class JanelaPrincipal(QMainWindow):
     def _ao_falhar(self, mensagem: str) -> None:
         self.statusBar().showMessage(f"Erro: {mensagem}")
         self._mostrar_erro(mensagem)
-
-    def _mostrar_dados(self, resultado: Resultado) -> None:
-        """Provisório: info e acessórios em texto (o painel gráfico vem na Etapa 4)."""
-        linhas = [f"{chave}: {valor}" for chave, valor in resultado.info.items()]
-        for item in resultado.acessorios:
-            titulo = item.titulo if isinstance(item, Histograma) else item[0]
-            tipo = "histograma" if isinstance(item, Histograma) else "imagem"
-            linhas.append(f"{tipo}: {titulo}")
-        # Lado a lado com quebra automática: cabe mais na área baixa de dados.
-        self._rotulo_acessorios.setText("   ·   ".join(linhas) or "Nada a exibir")
 
     def closeEvent(self, evento: QCloseEvent) -> None:  # noqa: N802 (nome do Qt)
         self.executor.encerrar()  # sem isso o Qt aborta ao destruir uma thread ativa
@@ -370,7 +390,8 @@ class JanelaPrincipal(QMainWindow):
         self.vis_saida.definir_imagem(img)
         if img is None:
             self._origem_saida = None
-            self._rotulo_acessorios.setText("Nada a exibir")
+            self.painel_acessorios.definir(None)
+            self._ajustar_altura_acessorios()
         self._atualizar_estado()
 
     def salvar_saida(self, caminho: str | Path) -> Path | None:
