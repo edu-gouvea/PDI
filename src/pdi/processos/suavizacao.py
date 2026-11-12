@@ -1,17 +1,13 @@
-"""Filtros espaciais: média gaussiana, mediana, mínimo e máximo (I2).
-
-Especificações (nome, parâmetros, limites) propostas pelo I1 como stubs; o I2 pode
-ajustar limites e textos. Ao implementar, substitua o corpo das funções e documente
-na ``descricao`` a política de volta para uint8 (clip ou min-max, ver core/util.py).
-"""
+"""Suavização espacial em NumPy, por canal e com bordas refletidas (I2)."""
 
 from typing import Any
 
 import numpy as np
 
 from pdi.core.contrato import Param, Resultado, TipoParam
+from pdi.core.espacial import convoluir, iterar_vizinhancas
 from pdi.core.registro import registrar_processo
-from pdi.processos._stub import resultado_stub
+from pdi.core.util import aplicar_por_canal, clip_para_uint8
 
 
 def _janela(padrao: int) -> Param:
@@ -48,10 +44,26 @@ def _janela(padrao: int) -> Param:
         ),
         _janela(7),
     ),
-    descricao="Média ponderada pelo kernel exp(−(x²+y²)/2σ²) normalizado. Suaviza a imagem.",
+    descricao=(
+        "Média pelo kernel exp(−(x²+y²)/2σ²) normalizado, em duas passagens separáveis. "
+        "Por canal, bordas refletidas sem repetir a extremidade; arredondamento e clip [0, 255]."
+    ),
 )
 def filtro_gaussiano(img: np.ndarray, p: dict[str, Any]) -> Resultado:
-    return resultado_stub(img, 2)  # TODO(I2)
+    raio = p["janela"] // 2
+    eixo = np.arange(-raio, raio + 1, dtype=np.float64)
+    pesos = np.exp(-(eixo**2) / (2.0 * p["sigma"] ** 2))
+    pesos /= pesos.sum()
+
+    def suavizar(canal: np.ndarray) -> np.ndarray:
+        horizontal = convoluir(canal, pesos[np.newaxis, :])
+        return convoluir(horizontal, pesos[:, np.newaxis])
+
+    saida = clip_para_uint8(aplicar_por_canal(suavizar, img))
+    return Resultado(
+        saidas=[("Suavizada (gaussiana)", saida)],
+        info={"σ": p["sigma"], "janela": p["janela"]},
+    )
 
 
 @registrar_processo(
@@ -72,7 +84,24 @@ def filtro_gaussiano(img: np.ndarray, p: dict[str, Any]) -> Resultado:
         ),
         _janela(3),
     ),
-    descricao="Substitui cada pixel pela mediana, mínimo ou máximo da sua vizinhança.",
+    descricao=(
+        "Substitui cada pixel pela mediana, mínimo ou máximo da vizinhança, por canal. "
+        "Bordas refletidas sem repetir a extremidade. Seleção exata em uint8, sem reescala."
+    ),
 )
 def filtro_ordem(img: np.ndarray, p: dict[str, Any]) -> Resultado:
-    return resultado_stub(img, 2)  # TODO(I2)
+    reducao = {"mediana": np.median, "mínimo": np.min, "máximo": np.max}[p["tipo"]]
+
+    def filtrar(canal: np.ndarray) -> np.ndarray:
+        # Para janela ímpar, a mediana é um dos níveis uint8 de entrada. Não há
+        # soma nem produto em uint8: todas as reduções selecionam níveis exatos.
+        saida = np.empty_like(canal)
+        for linhas, vizinhancas in iterar_vizinhancas(canal, p["janela"]):
+            saida[linhas] = reducao(vizinhancas, axis=(-2, -1))
+        return saida
+
+    saida = aplicar_por_canal(filtrar, img)
+    return Resultado(
+        saidas=[(f"Filtro de {p['tipo']}", saida)],
+        info={"tipo": p["tipo"], "janela": p["janela"]},
+    )

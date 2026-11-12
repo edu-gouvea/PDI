@@ -133,7 +133,7 @@ def test_area_de_dados_cresce_com_cartoes_e_encolhe_sem(qapp, monkeypatch):
         baixa = j.caixa_acessorios.height()
         aplicar("teste_hist")
         assert j.caixa_acessorios.height() == ALTURA_ACESSORIOS_COM_CARTOES
-        aplicar("limiarizacao")  # stub: só info, sem cartões
+        aplicar("limiarizacao")  # só info, sem cartões
         assert j.caixa_acessorios.height() <= baixa + 5
     finally:
         j.close()  # encerra a thread de trabalho mesmo se uma verificação falhar

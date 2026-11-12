@@ -176,12 +176,110 @@ def test_aplicar_desabilitado_sem_imagem_ou_processo(janela):
 
 def test_aplicar_mostra_saida_tempo_e_info(qapp, janela):
     janela.abrir_arquivo(IMAGENS / "cameraman.png")
-    _aplicar_e_esperar(qapp, janela, "limiarizacao")  # stub: devolve a própria entrada
-    np.testing.assert_array_equal(janela.saida, janela.entrada.pixels)
+    _aplicar_e_esperar(qapp, janela, "limiarizacao")
+    esperado = np.where(janela.entrada.pixels > 127, 255, 0).astype(np.uint8)
+    np.testing.assert_array_equal(janela.saida, esperado)
     assert "aplicado em" in janela.statusBar().currentMessage()
     assert janela.rotulo_tempo.text().startswith("Tempo: ")
-    assert "stub" in janela.painel_acessorios.texto_info
+    assert "limiar k: 127" in janela.painel_acessorios.texto_info
     assert janela.acao_salvar.isEnabled() and not janela.progresso.isVisible()
+
+
+def test_equalizacao_real_exibe_histogramas_salva_e_encadeia(qapp, janela, tmp_path):
+    from pdi.core.imagem_io import carregar_png
+    from pdi.ui.painel_acessorios import CartaoHistograma
+
+    janela.abrir_arquivo(IMAGENS / "cameraman_baixo_contraste.png")
+    original = janela.entrada.pixels.copy()
+    _aplicar_e_esperar(qapp, janela, "equalizacao_histograma")
+    equalizada = janela.saida.copy()
+    assert not np.array_equal(original, equalizada)
+    assert len(janela.painel_acessorios.cartoes) == 2
+    for cartao, titulo, img in zip(
+        janela.painel_acessorios.cartoes, ["Antes", "Depois"], [original, equalizada], strict=True
+    ):
+        assert isinstance(cartao, CartaoHistograma) and cartao.titulo == titulo
+        np.testing.assert_array_equal(cartao.valores, np.bincount(img.ravel(), minlength=256))
+        cartao.grab()  # renderização do componente existente com dados reais do I2
+    salvo = janela.salvar_saida(tmp_path / "equalizada.png")
+    np.testing.assert_array_equal(carregar_png(salvo).pixels, equalizada)
+    np.testing.assert_array_equal(janela.entrada.pixels, original)
+    janela.usar_saida_como_entrada()
+    np.testing.assert_array_equal(janela.entrada.pixels, equalizada)
+    _aplicar_e_esperar(qapp, janela, "filtro_gaussiano")
+    assert janela.saida.shape == equalizada.shape
+    assert janela.painel_acessorios.cartoes == []
+    assert janela.erros == []
+
+
+def test_fatiamento_real_repassa_erro_de_faixa_e_permite_corrigir(qapp, janela):
+    janela.abrir_arquivo(IMAGENS / "cameraman.png")
+    _aplicar_e_esperar(qapp, janela, "limiarizacao")
+    anterior = janela.saida.copy()
+    janela.painel_processos.selecionar("fatiamento_intensidade")
+    janela.painel_parametros.definir_valores({"a": 200, "b": 100})
+    assert janela.aplicar()
+    esperar(qapp, lambda: not janela.executor.ocupado)
+    qapp.processEvents()
+    assert janela.erros == ["A deve ser menor ou igual a B."]
+    np.testing.assert_array_equal(janela.saida, anterior)
+    janela.painel_parametros.definir_valores({"a": 100, "b": 180, "fundo": "zerar"})
+    assert janela.aplicar()
+    esperar(qapp, lambda: not janela.executor.ocupado)
+    qapp.processEvents()
+    faixa = (janela.entrada.pixels >= 100) & (janela.entrada.pixels <= 180)
+    np.testing.assert_array_equal(janela.saida, np.where(faixa, 255, 0))
+    assert len(janela.erros) == 1
+
+
+@pytest.mark.parametrize(
+    "processo",
+    [
+        "mascara_agucamento",
+        "realce_laplaciano",
+        "gradiente_sobel",
+        "filtro_gaussiano_frequencia",
+        "filtro_butterworth",
+        "mediana_adaptativa",
+    ],
+)
+@pytest.mark.parametrize("tipo", ["cinza", "rgb"])
+def test_processos_i3_reais_na_interface(
+    qapp, janela, tmp_path, img_cinza, img_rgb, processo, tipo
+):
+    from pdi.core.imagem_io import carregar_png, salvar_png
+
+    img = img_cinza if tipo == "cinza" else img_rgb
+    arquivo = salvar_png(img, tmp_path / "entrada.png")
+    assert janela.abrir_arquivo(arquivo)
+    _aplicar_e_esperar(qapp, janela, processo)
+    assert janela.erros == []
+    assert janela.saida.shape == img.shape and janela.saida.dtype == np.uint8
+    assert "stub" not in janela.painel_acessorios.texto_info
+    np.testing.assert_array_equal(janela.entrada.pixels, img)
+    titulos = {
+        "realce_laplaciano": ["Laplaciano ajustado"],
+        "filtro_gaussiano_frequencia": [
+            "Espectro original (log)",
+            "Filtro H(u,v)",
+            "Espectro filtrado (log)",
+        ],
+        "filtro_butterworth": [
+            "Espectro original (log)",
+            "Filtro H(u,v)",
+            "Espectro filtrado (log)",
+        ],
+    }.get(processo, [])
+    assert [c.titulo for c in janela.painel_acessorios.cartoes] == titulos
+    for cartao in janela.painel_acessorios.cartoes:
+        assert cartao.imagem.dtype == np.uint8
+        cartao.grab()
+    assert processo.replace("_", "-") in janela._sugestao_para_salvar()
+    salvo = janela.salvar_saida(tmp_path / f"{processo}-{tipo}.png")
+    resultado = janela.saida.copy()
+    np.testing.assert_array_equal(carregar_png(salvo).pixels, resultado)
+    janela.usar_saida_como_entrada()
+    np.testing.assert_array_equal(janela.entrada.pixels, resultado)
 
 
 def test_saidas_multiplas_viram_abas(qapp, janela, tmp_path):

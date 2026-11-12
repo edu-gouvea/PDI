@@ -1,8 +1,8 @@
-"""Testes de fumaça de TODOS os processos registrados (stubs ou reais).
+"""Testes de fumaça de todos os 17 processos reais registrados.
 
 Garante que os 17 processos da especificação existem, com a compatibilidade cinza/RGB
 combinada pelo grupo, e que cada um roda com os parâmetros padrão numa imagem cinza e
-numa RGB. Continua valendo depois que os stubs forem substituídos pelo código real.
+numa RGB. Os testes específicos de cada módulo verificam as fórmulas dos processos.
 """
 
 import pytest
@@ -84,3 +84,5 @@ def test_processo_roda_com_parametros_padrao(spec, tipo, img_cinza, img_rgb):
     principal = res.saidas[0][1]
     assert principal.shape[:2] == img.shape[:2]
     tipo_da_imagem(principal)
+    assert "stub" not in res.saidas[0][0].lower()
+    assert "stub" not in str(res.info).lower()

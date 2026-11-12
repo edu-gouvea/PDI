@@ -114,6 +114,15 @@ qual semente foi usada. Digitando essa semente, o mesmo ruído é gerado de novo
 
 Em imagens RGB, os filtros são aplicados a cada canal separadamente.
 
+Os sete processos do integrante 2 estão implementados, incluindo os histogramas da
+equalização e a convolução compartilhada. As fórmulas, as políticas de borda e a validação
+por sprints estão em [Implementação do integrante 2](docs/integrante2.md).
+
+Os seis processos do integrante 3 também estão implementados: aguçamento, Laplaciano,
+Sobel, filtros gaussiano e Butterworth na frequência e mediana adaptativa. Os filtros na
+frequência mostram o filtro e os espectros antes/depois. As escolhas de máscaras, FFT e
+normalização estão em [Implementação do integrante 3](docs/integrante3.md).
+
 ### Imagens de teste
 
 A pasta [`imagens_teste/`](imagens_teste/) traz imagens em cinza e RGB para experimentar,
